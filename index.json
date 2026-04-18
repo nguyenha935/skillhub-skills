@@ -1,0 +1,11 @@
+{
+  "catalogVersion": 1,
+  "name": "skillhub-skills",
+  "description": "Public built-in skill catalog for SkillHub.",
+  "skills": [
+    {
+      "slug": "video-summarize",
+      "manifest": "skills/video-summarize/skillhub.manifest.json"
+    }
+  ]
+}
