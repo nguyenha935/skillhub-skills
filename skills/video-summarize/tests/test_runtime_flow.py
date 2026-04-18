@@ -5,7 +5,7 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 
-from submit_video_job import classify_source, build_payload, build_signed_headers
+from submit_video_job import classify_source, build_payload, build_signed_headers, resolve_runtime_secret
 from upload_video_job import (
     stream_file_chunks,
     build_upload_metadata,
@@ -50,6 +50,25 @@ def test_build_signed_headers():
     assert headers['X-SkillHub-Timestamp'] == '1234567890'
     assert headers['X-SkillHub-Nonce'] == 'nonce123'
     print('build_signed_headers: OK')
+
+
+def test_resolve_runtime_secret_prefers_explicit_skillhub_secret():
+    old_runtime = os.environ.get('SKILLHUB_RUNTIME_SHARED_SECRET')
+    old_gateway = os.environ.get('GOCLAW_GATEWAY_TOKEN')
+    try:
+      os.environ['SKILLHUB_RUNTIME_SHARED_SECRET'] = 'runtime-secret'
+      os.environ['GOCLAW_GATEWAY_TOKEN'] = 'gateway-secret'
+      assert resolve_runtime_secret() == 'runtime-secret'
+      print('resolve_runtime_secret explicit: OK')
+    finally:
+      if old_runtime is None:
+          os.environ.pop('SKILLHUB_RUNTIME_SHARED_SECRET', None)
+      else:
+          os.environ['SKILLHUB_RUNTIME_SHARED_SECRET'] = old_runtime
+      if old_gateway is None:
+          os.environ.pop('GOCLAW_GATEWAY_TOKEN', None)
+      else:
+          os.environ['GOCLAW_GATEWAY_TOKEN'] = old_gateway
 
 
 def test_stream_file_chunks():

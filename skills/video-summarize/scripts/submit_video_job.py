@@ -51,6 +51,19 @@ def build_signed_headers(timestamp: str, nonce: str, body: str, secret: str) -> 
     }
 
 
+def resolve_runtime_secret(signing_context: str = 'skillhub-internal-v1') -> str:
+    shared_secret = os.environ.get('SKILLHUB_RUNTIME_SHARED_SECRET', '').strip()
+    if shared_secret:
+        return shared_secret
+
+    gateway_token = os.environ.get('GOCLAW_GATEWAY_TOKEN', '').strip()
+    return hmac.new(
+        gateway_token.encode(),
+        signing_context.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
 def submit(source: str, skill_slug: str = 'video-summarize') -> dict:
     config = load_runtime_config()
     source_type = classify_source(source)
@@ -64,12 +77,7 @@ def submit(source: str, skill_slug: str = 'video-summarize') -> dict:
     body = json.dumps(payload)
     timestamp = str(int(time.time()))
     nonce = f'{timestamp}-{os.urandom(8).hex()}'
-    gateway_token = os.environ.get('GOCLAW_GATEWAY_TOKEN', '')
-    runtime_secret = hmac.new(
-        gateway_token.encode(),
-        b'skillhub-internal-v1',
-        hashlib.sha256,
-    ).hexdigest()
+    runtime_secret = resolve_runtime_secret()
     headers = build_signed_headers(timestamp, nonce, body, runtime_secret)
     req = Request(
         f"{config.get('skillHubUrl', 'http://skillhub:4080')}/api/jobs",

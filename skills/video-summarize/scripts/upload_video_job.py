@@ -8,6 +8,7 @@ import uuid
 from urllib.request import Request, urlopen
 
 from config_loader import load_runtime_config
+from submit_video_job import resolve_runtime_secret
 
 
 def stream_file_chunks(path: str, chunk_size: int = 1024 * 1024):
@@ -79,12 +80,7 @@ def submit_upload(path: str, skill_slug: str = 'video-summarize') -> dict:
     payload_text = json.dumps(payload)
     timestamp = str(int(time.time()))
     nonce = f'{timestamp}-{os.urandom(8).hex()}'
-    gateway_token = os.environ.get('GOCLAW_GATEWAY_TOKEN', '')
-    runtime_secret = hmac.new(
-        gateway_token.encode(),
-        b'skillhub-internal-v1',
-        hashlib.sha256,
-    ).hexdigest()
+    runtime_secret = resolve_runtime_secret()
     body_hash = hashlib.sha256(payload_text.encode()).hexdigest()
     signature = hmac.new(
         runtime_secret.encode(),

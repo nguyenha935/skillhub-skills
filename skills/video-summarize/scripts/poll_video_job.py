@@ -7,18 +7,14 @@ import time
 from urllib.request import Request, urlopen
 
 from config_loader import load_runtime_config
+from submit_video_job import resolve_runtime_secret
 
 POLL_INTERVAL = 3
 
 
 def poll_result(job_id: str, max_wait=600) -> dict:
     config = load_runtime_config()
-    gateway_token = os.environ.get('GOCLAW_GATEWAY_TOKEN', '')
-    runtime_secret = hmac.new(
-        gateway_token.encode(),
-        b'skillhub-internal-v1',
-        hashlib.sha256,
-    ).hexdigest()
+    runtime_secret = resolve_runtime_secret()
 
     deadline = time.time() + max_wait
     while time.time() < deadline:

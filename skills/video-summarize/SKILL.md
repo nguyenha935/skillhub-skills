@@ -66,5 +66,6 @@ GoClaw Agent
 
 - GoClaw with custom skill support
 - SkillHub service running on port 4080
-- `GOCLAW_GATEWAY_TOKEN` in environment
+- Preferred: `SKILLHUB_RUNTIME_SHARED_SECRET` in environment for runtime HMAC auth
+- Backward-compatible fallback: `GOCLAW_GATEWAY_TOKEN` if no dedicated SkillHub runtime secret is configured
 - At least one Gemini API key configured in SkillHub admin UI

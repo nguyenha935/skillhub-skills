@@ -1,4 +1,4 @@
-# Usage — video-summarize
+# Usage - video-summarize
 
 ## Quick Start
 
@@ -32,7 +32,8 @@ File is streamed to SkillHub via Gemini Files API.
 | Variable | Default | Description |
 |---|---|---|
 | `SKILLHUB_URL` | `http://skillhub:4080` | SkillHub internal URL |
-| `GOCLAW_GATEWAY_TOKEN` | — | Required: GoClaw gateway token |
+| `SKILLHUB_RUNTIME_SHARED_SECRET` | - | Preferred shared secret for SkillHub runtime HMAC auth |
+| `GOCLAW_GATEWAY_TOKEN` | - | Backward-compatible fallback when no dedicated SkillHub runtime secret exists |
 
 ## Output
 
@@ -40,7 +41,7 @@ Prints the video summary to stdout. Returns exit code 0 on success, 1 on failure
 
 ## Error Codes
 
-- `youtube_transcript_unavailable` — No captions and youtubeMode=web
-- `gemini_generate_failed` — Gemini API error
-- `provider_exhausted` — All credentials failed or cooling down
-- `timeout` — Job did not complete within 600 seconds
+- `youtube_transcript_unavailable` - No captions and youtubeMode=web
+- `gemini_generate_failed` - Gemini API error
+- `provider_exhausted` - All credentials failed or cooling down
+- `timeout` - Job did not complete within 600 seconds
