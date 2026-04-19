@@ -4,7 +4,7 @@ description: Summarize video from YouTube, direct URL, upload, or local file pat
 license: All rights reserved
 metadata:
   author: nguyenha935
-  version: "1.0.2"
+  version: "1.0.3"
 ---
 
 # video-summarize Skill

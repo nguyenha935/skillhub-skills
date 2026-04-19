@@ -12,6 +12,10 @@ from submit_video_job import resolve_runtime_secret
 POLL_INTERVAL = 3
 
 
+def hash_request_body(body: str) -> str:
+    return hmac.new(b'', body.encode(), hashlib.sha256).hexdigest()
+
+
 def poll_result(job_id: str, max_wait=600) -> dict:
     config = load_runtime_config()
     runtime_secret = resolve_runtime_secret()
@@ -20,7 +24,7 @@ def poll_result(job_id: str, max_wait=600) -> dict:
     while time.time() < deadline:
         timestamp = str(int(time.time()))
         nonce = f'{timestamp}-{os.urandom(8).hex()}'
-        body_hash = hashlib.sha256(b'').hexdigest()
+        body_hash = hash_request_body('')
         headers = {
             'X-SkillHub-Timestamp': timestamp,
             'X-SkillHub-Nonce': nonce,
