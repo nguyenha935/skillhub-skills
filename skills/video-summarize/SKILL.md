@@ -1,3 +1,12 @@
+---
+name: video-summarize
+description: Summarize video from YouTube, direct URL, upload, or local file path via SkillHub.
+license: All rights reserved
+metadata:
+  author: nguyenha935
+  version: "1.0.2"
+---
+
 # video-summarize Skill
 
 Summarize any video from a URL or local file path. Powered by SkillHub — a custom skill sidecar for GoClaw.
