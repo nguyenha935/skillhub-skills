@@ -38,8 +38,12 @@ def build_payload(
     return payload
 
 
+def hash_request_body(body: str) -> str:
+    return hmac.new(b'', body.encode(), hashlib.sha256).hexdigest()
+
+
 def build_signed_headers(timestamp: str, nonce: str, body: str, secret: str) -> dict:
-    body_hash = hashlib.sha256(body.encode()).hexdigest()
+    body_hash = hash_request_body(body)
     sig_input = f'{timestamp}{nonce}{body_hash}'
     signature = hmac.new(secret.encode(), sig_input.encode(), hashlib.sha256).hexdigest()
     return {

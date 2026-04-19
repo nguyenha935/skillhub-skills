@@ -45,13 +45,26 @@ def test_build_payload():
 
 
 def test_build_signed_headers():
-    headers = build_signed_headers('1234567890', 'nonce123', '{"test":true}', 'secret123')
+    body = '{"test":true}'
+    headers = build_signed_headers('1234567890', 'nonce123', body, 'secret123')
     assert 'X-SkillHub-Timestamp' in headers
     assert 'X-SkillHub-Nonce' in headers
     assert 'X-SkillHub-Body-SHA256' in headers
     assert 'X-SkillHub-Signature' in headers
     assert headers['X-SkillHub-Timestamp'] == '1234567890'
     assert headers['X-SkillHub-Nonce'] == 'nonce123'
+    expected_body_hash = hmac.new(
+        b'',
+        body.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    expected_signature = hmac.new(
+        b'secret123',
+        f'1234567890nonce123{expected_body_hash}'.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    assert headers['X-SkillHub-Body-SHA256'] == expected_body_hash
+    assert headers['X-SkillHub-Signature'] == expected_signature
     print('build_signed_headers: OK')
 
 
