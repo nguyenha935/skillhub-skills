@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import json
 import os
 import sys
@@ -10,6 +12,7 @@ from upload_video_job import (
     stream_file_chunks,
     build_upload_metadata,
     build_multipart_body,
+    build_upload_auth_headers,
 )
 from config_loader import load_runtime_config
 
@@ -138,6 +141,37 @@ def test_build_multipart_body_contains_payload_and_file_bytes():
         os.unlink(path)
 
 
+def test_build_upload_auth_headers_signs_payload_text():
+    payload = {
+        'skillSlug': 'video-summarize',
+        'jobType': 'video_summarize',
+        'sourceType': 'file_path',
+        'sourceRef': '/tmp/video.mp4',
+        'sourceName': 'video.mp4',
+        'sourceMimeType': 'video/mp4',
+    }
+    payload_text = json.dumps(payload)
+    headers = build_upload_auth_headers(
+        payload_text=payload_text,
+        runtime_secret='runtime-secret',
+        timestamp='1234567890',
+        nonce='nonce123',
+    )
+    expected_body_hash = hmac.new(
+        b'',
+        payload_text.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    expected_signature = hmac.new(
+        b'runtime-secret',
+        f'1234567890nonce123{expected_body_hash}'.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    assert headers['X-SkillHub-Body-SHA256'] == expected_body_hash
+    assert headers['X-SkillHub-Signature'] == expected_signature
+    print('build_upload_auth_headers: OK')
+
+
 if __name__ == '__main__':
     test_classify_source()
     test_build_payload()
@@ -146,4 +180,5 @@ if __name__ == '__main__':
     test_build_upload_metadata()
     test_load_runtime_config_prefers_asset_file()
     test_build_multipart_body_contains_payload_and_file_bytes()
+    test_build_upload_auth_headers_signs_payload_text()
     print('\nAll tests passed!')

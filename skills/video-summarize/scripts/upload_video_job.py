@@ -69,6 +69,30 @@ def build_multipart_body(payload: dict, path: str):
     return bytes(body), f'multipart/form-data; boundary={boundary}'
 
 
+def hash_request_body(body: str) -> str:
+    return hmac.new(b'', body.encode(), hashlib.sha256).hexdigest()
+
+
+def build_upload_auth_headers(
+    payload_text: str,
+    runtime_secret: str,
+    timestamp: str,
+    nonce: str,
+) -> dict:
+    body_hash = hash_request_body(payload_text)
+    signature = hmac.new(
+        runtime_secret.encode(),
+        f'{timestamp}{nonce}{body_hash}'.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return {
+        'X-SkillHub-Timestamp': timestamp,
+        'X-SkillHub-Nonce': nonce,
+        'X-SkillHub-Body-SHA256': body_hash,
+        'X-SkillHub-Signature': signature,
+    }
+
+
 def submit_upload(path: str, skill_slug: str = 'video-summarize') -> dict:
     config = load_runtime_config()
     payload = build_upload_metadata(
@@ -81,21 +105,14 @@ def submit_upload(path: str, skill_slug: str = 'video-summarize') -> dict:
     timestamp = str(int(time.time()))
     nonce = f'{timestamp}-{os.urandom(8).hex()}'
     runtime_secret = resolve_runtime_secret()
-    body_hash = hashlib.sha256(payload_text.encode()).hexdigest()
-    signature = hmac.new(
-        runtime_secret.encode(),
-        f'{timestamp}{nonce}{body_hash}'.encode(),
-        hashlib.sha256,
-    ).hexdigest()
-
     multipart_body, content_type = build_multipart_body(payload, path)
-    headers = {
-        'X-SkillHub-Timestamp': timestamp,
-        'X-SkillHub-Nonce': nonce,
-        'X-SkillHub-Body-SHA256': body_hash,
-        'X-SkillHub-Signature': signature,
-        'Content-Type': content_type,
-    }
+    headers = build_upload_auth_headers(
+        payload_text=payload_text,
+        runtime_secret=runtime_secret,
+        timestamp=timestamp,
+        nonce=nonce,
+    )
+    headers['Content-Type'] = content_type
     req = Request(
         f"{config.get('skillHubUrl', 'http://skillhub:4080')}/api/jobs",
         data=multipart_body,
