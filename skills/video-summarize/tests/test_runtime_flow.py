@@ -17,6 +17,9 @@ from upload_video_job import (
 from config_loader import load_runtime_config
 
 
+SKILL_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+
 def test_classify_source():
     assert classify_source('https://www.youtube.com/watch?v=dQw4w9WgXcQ') == 'youtube_url'
     assert classify_source('https://youtu.be/dQw4w9WgXcQ') == 'youtube_url'
@@ -131,6 +134,21 @@ def test_load_runtime_config_prefers_asset_file():
         print('load_runtime_config: OK')
 
 
+def test_skill_docs_use_goclaw_safe_shell_command():
+    with open(os.path.join(SKILL_ROOT, 'SKILL.md'), encoding='utf-8') as handle:
+        skill_doc = handle.read()
+    with open(os.path.join(SKILL_ROOT, 'references', 'usage.md'), encoding='utf-8') as handle:
+        usage_doc = handle.read()
+
+    expected = 'sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh'
+    assert expected in skill_doc
+    assert expected in usage_doc
+    assert 'bash /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh' not in skill_doc
+    assert '\n./scripts/run-video-summarize.sh' not in skill_doc
+    assert '\n./scripts/run-video-summarize.sh' not in usage_doc
+    print('skill docs shell command: OK')
+
+
 def test_build_multipart_body_contains_payload_and_file_bytes():
     payload = {
         'skillSlug': 'video-summarize',
@@ -192,6 +210,7 @@ if __name__ == '__main__':
     test_stream_file_chunks()
     test_build_upload_metadata()
     test_load_runtime_config_prefers_asset_file()
+    test_skill_docs_use_goclaw_safe_shell_command()
     test_build_multipart_body_contains_payload_and_file_bytes()
     test_build_upload_auth_headers_signs_payload_text()
     print('\nAll tests passed!')
