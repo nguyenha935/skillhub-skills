@@ -4,7 +4,7 @@ description: Summarize video from YouTube, direct URL, upload, or local file pat
 license: All rights reserved
 metadata:
   author: nguyenha935
-  version: "1.0.4"
+  version: "1.0.5"
 ---
 
 # video-summarize Skill
@@ -29,6 +29,21 @@ Summarize any video from a URL or local file path. Powered by SkillHub — a cus
 ./scripts/run-video-summarize.sh "https://www.youtube.com/watch?v=..."
 ./scripts/run-video-summarize.sh "/local/path/to/video.mp4"
 ```
+
+## Important Runtime Rule
+
+Khi chạy skill này từ agent trong GoClaw:
+
+1. Luôn gọi `session_status` trước để lấy đúng `Session:` hiện tại.
+2. Sau đó chạy script với biến môi trường `SKILLHUB_SESSION_KEY` để SkillHub có thể callback đúng transcript session nếu job kéo dài.
+
+Ví dụ:
+
+```bash
+SKILLHUB_SESSION_KEY="agent:..." ./scripts/run-video-summarize.sh "https://www.youtube.com/watch?v=..."
+```
+
+Nếu không truyền `SKILLHUB_SESSION_KEY`, job vẫn chạy nhưng SkillHub sẽ không thể inject kết quả trở lại agent khi job hoàn thành muộn.
 
 ## Configuration
 

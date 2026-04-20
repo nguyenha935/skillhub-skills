@@ -18,6 +18,17 @@ def classify_source(value: str) -> str:
     return 'file_path'
 
 
+def read_callback_context() -> dict | None:
+    session_key = os.environ.get('SKILLHUB_SESSION_KEY', '').strip()
+    if not session_key:
+        return None
+    callback_mode = os.environ.get('SKILLHUB_CALLBACK_MODE', 'inject_then_chat_send').strip() or 'inject_then_chat_send'
+    return {
+        'sessionKey': session_key,
+        'callbackMode': callback_mode,
+    }
+
+
 def build_payload(
     source_type: str,
     source_ref: str,
@@ -33,6 +44,9 @@ def build_payload(
         'sourceType': source_type,
         'sourceRef': source_ref,
     }
+    callback_context = read_callback_context()
+    if callback_context:
+        payload['callbackContext'] = callback_context
     if model:
         payload['model'] = model
     return payload

@@ -8,7 +8,7 @@ import uuid
 from urllib.request import Request, urlopen
 
 from config_loader import load_runtime_config
-from submit_video_job import resolve_runtime_secret
+from submit_video_job import resolve_runtime_secret, read_callback_context
 
 
 def stream_file_chunks(path: str, chunk_size: int = 1024 * 1024):
@@ -36,6 +36,9 @@ def build_upload_metadata(
         'sourceName': os.path.basename(path),
         'sourceMimeType': mime_type or 'application/octet-stream',
     }
+    callback_context = read_callback_context()
+    if callback_context:
+        payload['callbackContext'] = callback_context
     if model:
         payload['model'] = model
     return payload
