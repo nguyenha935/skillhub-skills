@@ -48,6 +48,7 @@ Field source mapping for `MISSING_CALLBACK_ROUTE`:
 - `senderId` <- event `senderId`
 - `peerKind` <- parse part 4 from `sessionKey` (`direct|group`)
 - `agentId` <- event `agentId` (fallback: parse part 2 from `sessionKey`)
+- Route coherence rule: if any route field conflicts with parsed `sessionKey`, trust `sessionKey`.
 
 ## Input Types
 

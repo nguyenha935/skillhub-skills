@@ -55,25 +55,31 @@ def enrich_callback_context(callback_context: Optional[dict]) -> Optional[dict]:
         or 'inject_then_channel_send'
     )
 
+    parsed_channel = str(parsed.get('channel', '')).strip()
+    parsed_chat_id = str(parsed.get('chatId', '')).strip()
+    parsed_peer_kind = str(parsed.get('peerKind', '')).strip()
+    parsed_agent_id = str(parsed.get('agentId', '')).strip()
+
+    # Route must stay coherent with sessionKey to avoid callback to wrong channel/chat.
     channel = (
-        str(callback_context.get('channel', '')).strip()
+        parsed_channel
+        or str(callback_context.get('channel', '')).strip()
         or first_env('SKILLHUB_CHANNEL', 'CHANNEL', 'GOCLAW_CHANNEL')
-        or parsed.get('channel', '')
     )
     chat_id = (
-        str(callback_context.get('chatId', '')).strip()
+        parsed_chat_id
+        or str(callback_context.get('chatId', '')).strip()
         or first_env('SKILLHUB_CHAT_ID', 'CHAT_ID', 'TO', 'GOCLAW_CHAT_ID')
-        or parsed.get('chatId', '')
     )
     peer_kind = (
-        str(callback_context.get('peerKind', '')).strip()
+        parsed_peer_kind
+        or str(callback_context.get('peerKind', '')).strip()
         or first_env('SKILLHUB_PEER_KIND', 'PEER_KIND', 'GOCLAW_PEER_KIND')
-        or parsed.get('peerKind', '')
     )
     agent_id = (
-        str(callback_context.get('agentId', '')).strip()
+        parsed_agent_id
+        or str(callback_context.get('agentId', '')).strip()
         or first_env('SKILLHUB_AGENT_ID', 'AGENT_ID', 'GOCLAW_AGENT_ID')
-        or parsed.get('agentId', '')
     )
     user_id = (
         str(callback_context.get('userId', '')).strip()

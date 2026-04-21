@@ -144,6 +144,22 @@ def test_enrich_callback_context_derives_route_from_session_key():
     print('enrich_callback_context derive from session key: OK')
 
 
+def test_enrich_callback_context_session_key_overrides_mismatched_route_fields():
+    enriched = enrich_callback_context({
+        'sessionKey': 'agent:ly-content:bao-ly-zalo:group:5246639850626543237',
+        'channel': 'zalo_personal',
+        'chatId': '999999',
+        'peerKind': 'direct',
+        'agentId': 'wrong-agent',
+    })
+    assert enriched is not None
+    assert enriched['channel'] == 'bao-ly-zalo'
+    assert enriched['chatId'] == '5246639850626543237'
+    assert enriched['peerKind'] == 'group'
+    assert enriched['agentId'] == 'ly-content'
+    print('enrich_callback_context keeps route coherent with session key: OK')
+
+
 def test_build_signed_headers():
     body = '{"test":true}'
     headers = build_signed_headers('1234567890', 'nonce123', body, 'secret123')
@@ -360,6 +376,7 @@ if __name__ == '__main__':
     test_remote_sources_allow_callback_when_full_route_present()
     test_local_file_path_does_not_require_session_key()
     test_enrich_callback_context_derives_route_from_session_key()
+    test_enrich_callback_context_session_key_overrides_mismatched_route_fields()
     test_build_signed_headers()
     test_resolve_runtime_secret_prefers_explicit_skillhub_secret()
     test_stream_file_chunks()

@@ -4,7 +4,7 @@ description: Summarize video from YouTube, direct URL, upload, or local file pat
 license: All rights reserved
 metadata:
   author: nguyenha935
-  version: "1.0.10"
+  version: "1.0.11"
 ---
 
 # video-summarize Skill
@@ -61,6 +61,7 @@ SKILLHUB_SESSION_KEY="agent:..." sh /app/data/skills-store/video-summarize/1/scr
     `senderId` <- event `senderId`
     `peerKind` <- parse part 4 from `sessionKey` (`direct` or `group`)
     `agentId` <- event `agentId` (fallback: parse part 2 from `sessionKey`)
+    Route coherence rule: if any route field conflicts with parsed `sessionKey`, trust `sessionKey`.
 11. Never expose internal markers/fields in user-facing messages: `[skillhub_memory]`, `[[skillhub_memory]]`, `[skillhub_result]`, `[[skillhub_result]]`, `job_id:`, `status:`, `source_ref:`.
 
 ## Configuration
