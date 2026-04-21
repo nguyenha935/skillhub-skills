@@ -4,7 +4,7 @@ description: Summarize video from YouTube, direct URL, upload, or local file pat
 license: All rights reserved
 metadata:
   author: nguyenha935
-  version: "1.0.9"
+  version: "1.0.10"
 ---
 
 # video-summarize Skill
@@ -22,6 +22,12 @@ Summarize video from YouTube, direct video URLs, or local file paths through Ski
 
 Always use `sh`. Do not call the script directly and do not use `bash`.
 
+Mandatory preflight for every new run: read this file first.
+
+```bash
+sed -n '1,220p' /app/data/skills-store/video-summarize/1/SKILL.md
+```
+
 ```bash
 sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh "https://www.youtube.com/watch?v=..."
 sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh "https://cdn.example.com/video.mp4"
@@ -37,14 +43,25 @@ SKILLHUB_SESSION_KEY="agent:..." sh /app/data/skills-store/video-summarize/1/scr
 
 ## Runtime Rules For Agents
 
-1. Use the command above directly.
-2. Do not use `read_file` on `/app/data/skills-store/...`; this skill file already contains the required command.
-3. Do not use `bash`; GoClaw containers may only provide POSIX `sh`.
-4. Do not execute `./scripts/run-video-summarize.sh` directly; installed skill files may not preserve executable bits.
-5. If the first command returns a JSON job failure, report that failure. Do not guess alternative script paths.
-6. For remote jobs (`youtube_url` and direct `url`), pass full callback route fields:
+1. Before first skill call in a run, read `SKILL.md` using the preflight command above.
+2. Use only the canonical command above directly.
+3. Never use legacy path `/app/bundled-skills/summarize/scripts/run-summarize.sh`.
+4. Do not use `read_file` on `/app/data/skills-store/...`; this skill file already contains the required command.
+5. Do not use `bash`; GoClaw containers may only provide POSIX `sh`.
+6. Do not execute `./scripts/run-video-summarize.sh` directly; installed skill files may not preserve executable bits.
+7. If the first command returns a JSON job failure, report that failure. Do not guess alternative script paths.
+8. For remote jobs (`youtube_url` and direct `url`), pass full callback route fields:
    `sessionKey`, `channel`, `chatId`, `userId`, `senderId`, `peerKind`, `agentId`.
-7. Never expose internal markers/fields in user-facing messages: `[skillhub_memory]`, `[[skillhub_memory]]`, `[skillhub_result]`, `[[skillhub_result]]`, `job_id:`, `status:`, `source_ref:`.
+9. If error is `MISSING_CALLBACK_ROUTE`, retry once with full callback fields.
+10. Callback field source mapping:
+    `sessionKey` <- event `sessionKey`
+    `channel` <- event `channel`
+    `chatId` <- event `chatId` (fallback: parse part 5 from `sessionKey`)
+    `userId` <- event `userId`
+    `senderId` <- event `senderId`
+    `peerKind` <- parse part 4 from `sessionKey` (`direct` or `group`)
+    `agentId` <- event `agentId` (fallback: parse part 2 from `sessionKey`)
+11. Never expose internal markers/fields in user-facing messages: `[skillhub_memory]`, `[[skillhub_memory]]`, `[skillhub_result]`, `[[skillhub_result]]`, `job_id:`, `status:`, `source_ref:`.
 
 ## Configuration
 

@@ -4,6 +4,12 @@
 
 Use `sh`. Do not use `bash` and do not execute the script directly.
 
+Before first call in each run, read the skill instructions:
+
+```bash
+sed -n '1,220p' /app/data/skills-store/video-summarize/1/SKILL.md
+```
+
 ```bash
 sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 ```
@@ -20,17 +26,7 @@ SKILLHUB_USER_ID="$USER_ID" \
 SKILLHUB_SENDER_ID="$SENDER_ID" \
 SKILLHUB_PEER_KIND="$PEER_KIND" \
 SKILLHUB_AGENT_ID="$AGENT_ID" \
-./scripts/run-video-summarize.sh "https://cdn.example.com/video.mov"
-
-./scripts/run-video-summarize.sh \
-  --session-key "$SESSION_KEY" \
-  --channel "$CHANNEL" \
-  --chat-id "$CHAT_ID" \
-  --user-id "$USER_ID" \
-  --sender-id "$SENDER_ID" \
-  --peer-kind "$PEER_KIND" \
-  --agent-id "$AGENT_ID" \
-  "https://cdn.example.com/video.mov"
+sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh "https://cdn.example.com/video.mov"
 ```
 
 For remote video jobs, missing any of `sessionKey + channel + chatId + userId + senderId + peerKind + agentId` is a hard failure. The skill must not create a background job unless callback context is complete.
@@ -40,7 +36,18 @@ Agent behavior guardrails:
 - For a user turn that asks to summarize/analyze a video URL, call this skill first before any progress reply.
 - Only say "processing" when the current run has an actual tool result from this skill.
 - If tool output says `MISSING_CALLBACK_ROUTE`, retry with full callback route fields instead of replying without tool execution.
+- Never call legacy path `/app/bundled-skills/summarize/scripts/run-summarize.sh`.
 - Do not expose internal markers/fields in user-facing replies (`skillhub_memory`, `skillhub_result`, or fields like `job_id`, `source_ref`, `summary_short`).
+
+Field source mapping for `MISSING_CALLBACK_ROUTE`:
+
+- `sessionKey` <- event `sessionKey`
+- `channel` <- event `channel`
+- `chatId` <- event `chatId` (fallback: parse part 5 from `sessionKey`)
+- `userId` <- event `userId`
+- `senderId` <- event `senderId`
+- `peerKind` <- parse part 4 from `sessionKey` (`direct|group`)
+- `agentId` <- event `agentId` (fallback: parse part 2 from `sessionKey`)
 
 ## Input Types
 

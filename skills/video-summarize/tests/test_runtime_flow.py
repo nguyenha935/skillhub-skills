@@ -72,6 +72,7 @@ def test_remote_sources_require_session_key_for_callback():
         raise AssertionError('Expected missing callback route failure for remote URL')
     except SystemExit as exc:
         assert 'MISSING_CALLBACK_ROUTE' in str(exc)
+        assert 'Field source map' in str(exc)
     print('remote source callback route required: OK')
 
 

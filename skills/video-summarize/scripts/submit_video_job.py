@@ -202,13 +202,24 @@ def ensure_callback_context_for_remote_source(
     ]
     if not missing:
         return
+    field_source_hints = (
+        'Field source map: '
+        'sessionKey<-event.sessionKey; '
+        'channel<-event.channel; '
+        'chatId<-event.chatId (fallback: parse part 5 from sessionKey); '
+        'userId<-event.userId; '
+        'senderId<-event.senderId; '
+        'peerKind<-parse part 4 from sessionKey (direct|group); '
+        'agentId<-event.agentId (fallback: parse part 2 from sessionKey). '
+    )
     raise SystemExit(
         'MISSING_CALLBACK_ROUTE: Remote video jobs must include a full callback route so SkillHub can callback the same GoClaw conversation. '
         f"Missing: {', '.join(missing)}. "
         'Call this skill with SKILLHUB_CALLBACK_CONTEXT or pass '
         'SKILLHUB_SESSION_KEY + SKILLHUB_CHANNEL + SKILLHUB_CHAT_ID + SKILLHUB_USER_ID + SKILLHUB_SENDER_ID + SKILLHUB_PEER_KIND + SKILLHUB_AGENT_ID. '
         'Nếu chỉ có SKILLHUB_SESSION_KEY thì script sẽ tự suy ra route cơ bản từ sessionKey chuẩn '
-        'agent:<agentId>:<channel>:<peerKind>:<chatId> và tự điền userId/senderId khi có thể.'
+        'agent:<agentId>:<channel>:<peerKind>:<chatId> và tự điền userId/senderId khi có thể. '
+        + field_source_hints
     )
 
 
