@@ -3,7 +3,7 @@
   "id": "skillhub-skill-video-summarize",
   "slug": "video-summarize",
   "name": "Video Summarize",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Summarize video from YouTube, direct URL, upload, or local file path via SkillHub.",
   "summary": "Transcript-first YouTube summarization with Gemini native video fallback for direct and local files.",
   "compatibility": {

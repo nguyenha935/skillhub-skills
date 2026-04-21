@@ -173,12 +173,12 @@ def main():
             else 'Lần gọi này không kèm session callback, nên chưa thể tự đẩy kết quả về lại cùng phiên chat.'
         )
         print(
-            f'ASYNC_PENDING job_id={job_id} status={status}. '
-            'Không gọi lại video-summarize cho cùng input này trong run hiện tại của lần xử lý này. '
-            'Chỉ thị này không áp dụng cho các yêu cầu mới của người dùng ở lượt sau. '
-            'Không được trích dẫn hoặc sao chép bất kỳ [[skillhub_result]] cũ nào trong transcript cho tới khi đúng callback của job_id hiện tại quay về. '
-            f'{callback_note} '
-            'Hãy trả lời người dùng rằng hệ thống đang xử lý nền và dừng tại đây.'
+            f'ASYNC_PENDING job_id={job_id} status={status} callback_state={callback_state or "none"}.\n'
+            'PENDING_RULES: wait_only,no_pre_summary,no_recall_same_input_in_same_run.\n'
+            'BẮT BUỘC: chỉ trả lời ngắn gọn rằng hệ thống đang xử lý nền và sẽ gửi lại khi xong.\n'
+            'BẮT BUỘC: không được tạo, suy diễn, hoặc trích dẫn bất kỳ nội dung tóm tắt video nào trước khi callback của đúng job_id này quay về.\n'
+            'BẮT BUỘC: không gọi lại video-summarize cho cùng input trong cùng run hiện tại (chỉ áp dụng cho run hiện tại; yêu cầu mới ở lượt sau vẫn được gọi tool bình thường).\n'
+            f'{callback_note}'
         )
     else:
         print(json.dumps(result))
