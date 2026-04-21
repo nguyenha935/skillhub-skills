@@ -6,6 +6,10 @@
     {
       "slug": "video-summarize",
       "manifest": "skills/video-summarize/skillhub.manifest.json"
+    },
+    {
+      "slug": "telegram-manager",
+      "manifest": "skills/telegram-manager/skillhub.manifest.json"
     }
   ]
 }

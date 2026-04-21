@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "skillhub-skill-telegram-manager",
+  "slug": "telegram-manager",
+  "name": "Telegram Manager",
+  "version": "1.0.0",
+  "description": "Manage Telegram forum topics, messages, moderation, and chat settings via SkillHub.",
+  "summary": "Telegram Bot API management skill with allowlist and 2-step confirm for risky operations.",
+  "compatibility": {
+    "claws": [
+      "goclaw"
+    ]
+  },
+  "inputs": [
+    "telegram_action_json"
+  ],
+  "defaultRuntimeConfig": {
+    "skillHubUrl": "http://skillhub:4080",
+    "skillSlug": "telegram-manager",
+    "providerSlug": "telegram-bot",
+    "requestTimeoutSeconds": 30
+  },
+  "defaultProvider": {
+    "type": "telegram_bot",
+    "slug": "telegram-bot",
+    "displayName": "Telegram Bot",
+    "defaultModel": ""
+  },
+  "package": {
+    "type": "zip",
+    "path": "skills/telegram-manager/telegram-manager.zip",
+    "installPathTemplate": "/app/data/skills-store/telegram-manager/1/"
+  },
+  "docs": {
+    "skill": "skills/telegram-manager/SKILL.md",
+    "usage": "skills/telegram-manager/references/usage.md",
+    "actions": "skills/telegram-manager/references/actions.md"
+  }
+}
