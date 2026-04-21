@@ -6,6 +6,8 @@ DEFAULT_CONFIG = {
     'skillHubUrl': 'http://skillhub:4080',
     'defaultModel': 'gemini-3.1-flash-lite-preview',
     'youtubeMode': 'auto',
+        'syncWaitSeconds': 55,
+        'pollIntervalSeconds': 1,
 }
 
 

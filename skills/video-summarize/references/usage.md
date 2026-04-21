@@ -8,6 +8,40 @@ Use `sh`. Do not use `bash` and do not execute the script directly.
 sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 ```
 
+## Agent / Session Callback
+
+If an agent is calling this skill from an active chat session, pass the full callback route so SkillHub can callback the same user conversation after background completion:
+
+```bash
+SKILLHUB_SESSION_KEY="$SESSION_KEY" \
+SKILLHUB_CHANNEL="$CHANNEL" \
+SKILLHUB_CHAT_ID="$CHAT_ID" \
+SKILLHUB_USER_ID="$USER_ID" \
+SKILLHUB_SENDER_ID="$SENDER_ID" \
+SKILLHUB_PEER_KIND="$PEER_KIND" \
+SKILLHUB_AGENT_ID="$AGENT_ID" \
+./scripts/run-video-summarize.sh "https://cdn.example.com/video.mov"
+
+./scripts/run-video-summarize.sh \
+  --session-key "$SESSION_KEY" \
+  --channel "$CHANNEL" \
+  --chat-id "$CHAT_ID" \
+  --user-id "$USER_ID" \
+  --sender-id "$SENDER_ID" \
+  --peer-kind "$PEER_KIND" \
+  --agent-id "$AGENT_ID" \
+  "https://cdn.example.com/video.mov"
+```
+
+For remote video jobs, missing any of `sessionKey + channel + chatId + userId + senderId + peerKind + agentId` is a hard failure. The skill must not create a background job unless callback context is complete.
+
+Agent behavior guardrails:
+
+- For a user turn that asks to summarize/analyze a video URL, call this skill first before any progress reply.
+- Only say "processing" when the current run has an actual tool result from this skill.
+- If tool output says `MISSING_CALLBACK_ROUTE`, retry with full callback route fields instead of replying without tool execution.
+- Do not expose internal markers/fields in user-facing replies (`skillhub_memory`, `skillhub_result`, or fields like `job_id`, `source_ref`, `summary_short`).
+
 ## Input Types
 
 ### YouTube URL

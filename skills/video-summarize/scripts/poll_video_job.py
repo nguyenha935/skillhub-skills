@@ -9,11 +9,29 @@ from urllib.request import Request, urlopen
 from config_loader import load_runtime_config
 from submit_video_job import resolve_runtime_secret
 
-POLL_INTERVAL = 2
+DEFAULT_SYNC_WAIT_SECONDS = 55
+DEFAULT_POLL_INTERVAL_SECONDS = 1
 
 
 def hash_request_body(body: str) -> str:
     return hmac.new(b'', body.encode(), hashlib.sha256).hexdigest()
+
+
+def resolve_poll_settings(config: dict) -> dict:
+    try:
+        max_wait = int(config.get('syncWaitSeconds', DEFAULT_SYNC_WAIT_SECONDS))
+    except (TypeError, ValueError):
+        max_wait = DEFAULT_SYNC_WAIT_SECONDS
+
+    try:
+        poll_interval = int(config.get('pollIntervalSeconds', DEFAULT_POLL_INTERVAL_SECONDS))
+    except (TypeError, ValueError):
+        poll_interval = DEFAULT_POLL_INTERVAL_SECONDS
+
+    return {
+        'max_wait': max(5, min(max_wait, 55)),
+        'poll_interval': max(1, min(poll_interval, 10)),
+    }
 
 
 def build_auth_headers(runtime_secret: str) -> dict:
@@ -32,11 +50,9 @@ def build_auth_headers(runtime_secret: str) -> dict:
     }
 
 
-def fetch_job(job_id: str, config: dict, runtime_secret: str) -> dict | None:
-    req = Request(
-        f"{config.get('skillHubUrl', 'http://skillhub:4080')}/api/jobs/{job_id}",
-        headers=build_auth_headers(runtime_secret),
-    )
+def fetch_json(url: str, runtime_secret: str):
+    headers = build_auth_headers(runtime_secret)
+    req = Request(url, headers=headers)
     try:
         with urlopen(req, timeout=15) as resp:
             return json.loads(resp.read())
@@ -44,31 +60,75 @@ def fetch_job(job_id: str, config: dict, runtime_secret: str) -> dict | None:
         return None
 
 
-def poll_result(job_id: str, max_wait=48) -> dict:
-    config = load_runtime_config()
-    runtime_secret = resolve_runtime_secret()
+def fetch_result(job_id: str, config: dict, runtime_secret: str):
+    base_url = config.get('skillHubUrl', 'http://skillhub:4080')
+    return fetch_json(f'{base_url}/api/jobs/{job_id}/result', runtime_secret)
 
-    deadline = time.time() + max_wait
-    while time.time() < deadline:
-        req = Request(
-            f"{config.get('skillHubUrl', 'http://skillhub:4080')}/api/jobs/{job_id}/result",
-            headers=build_auth_headers(runtime_secret),
-        )
-        try:
-            with urlopen(req, timeout=15) as resp:
-                result = json.loads(resp.read())
-                if result.get('status') in ('completed', 'failed'):
-                    return result
-        except Exception:
-            pass
 
-        time.sleep(POLL_INTERVAL)
+def fetch_job(job_id: str, config: dict, runtime_secret: str):
+    base_url = config.get('skillHubUrl', 'http://skillhub:4080')
+    return fetch_json(f'{base_url}/api/jobs/{job_id}', runtime_secret)
 
-    job = fetch_job(job_id, config, runtime_secret) or {}
+
+def mark_consumed_sync(job_id: str, config: dict, runtime_secret: str):
+    base_url = config.get('skillHubUrl', 'http://skillhub:4080')
+    headers = build_auth_headers(runtime_secret)
+    headers['Content-Type'] = 'application/json'
+    req = Request(
+        f'{base_url}/api/jobs/{job_id}/consume-sync',
+        data=b'',
+        headers=headers,
+        method='POST',
+    )
+    try:
+        with urlopen(req, timeout=10):
+            return True
+    except Exception:
+        return False
+
+
+def poll_result(
+    job_id: str,
+    max_wait=None,
+    config=None,
+    runtime_secret=None,
+    fetch_result_fn=None,
+    fetch_job_fn=None,
+    sleep_fn=time.sleep,
+    now_fn=time.time,
+) -> dict:
+    config = config or load_runtime_config()
+    runtime_secret = runtime_secret or resolve_runtime_secret()
+    settings = resolve_poll_settings(config)
+    max_wait = settings['max_wait'] if max_wait is None else max_wait
+    poll_interval = settings['poll_interval']
+    fetch_result_fn = fetch_result_fn or fetch_result
+    fetch_job_fn = fetch_job_fn or fetch_job
+
+    deadline = now_fn() + max_wait
+    last_job_status = 'processing'
+
+    while now_fn() < deadline:
+        result = fetch_result_fn(job_id, config, runtime_secret)
+        if isinstance(result, dict) and result.get('status') in ('completed', 'failed'):
+            return result
+
+        job = fetch_job_fn(job_id, config, runtime_secret)
+        if isinstance(job, dict) and job.get('status'):
+            last_job_status = job.get('status')
+
+        if now_fn() >= deadline:
+            break
+        sleep_fn(poll_interval)
+
+    job = fetch_job_fn(job_id, config, runtime_secret)
+    if isinstance(job, dict) and job.get('status'):
+        last_job_status = job.get('status')
+
     return {
         'status': 'pending',
         'jobId': job_id,
-        'jobStatus': job.get('status', 'unknown'),
+        'jobStatus': last_job_status or 'processing',
     }
 
 
@@ -93,6 +153,9 @@ def main():
 
     result = poll_result(job_id)
     if result.get('status') == 'completed' and result.get('resultJson'):
+        # Best-effort signal: this result was already delivered synchronously
+        # in the current tool run, so async callback can be skipped.
+        mark_consumed_sync(job_id, load_runtime_config(), resolve_runtime_secret())
         try:
             data = json.loads(result['resultJson'])
             print(data.get('summary', result['resultJson']))
@@ -102,8 +165,20 @@ def main():
         print(json.dumps(result), file=sys.stderr)
         sys.exit(1)
     elif result.get('status') == 'pending':
+        status = result.get('jobStatus', 'processing')
+        callback_state = str(job.get('callbackState') or '').strip()
+        callback_note = (
+            'SkillHub sẽ tự gửi kết quả cuối về đúng session hiện tại khi job hoàn tất.'
+            if callback_state
+            else 'Lần gọi này không kèm session callback, nên chưa thể tự đẩy kết quả về lại cùng phiên chat.'
+        )
         print(
-            f"Video đang được SkillHub xử lý tiếp (job_id={result.get('jobId')}, status={result.get('jobStatus', 'pending')}). Hãy gọi lại sau ít phút để lấy kết quả."
+            f'ASYNC_PENDING job_id={job_id} status={status}. '
+            'Không gọi lại video-summarize cho cùng input này trong run hiện tại của lần xử lý này. '
+            'Chỉ thị này không áp dụng cho các yêu cầu mới của người dùng ở lượt sau. '
+            'Không được trích dẫn hoặc sao chép bất kỳ [[skillhub_result]] cũ nào trong transcript cho tới khi đúng callback của job_id hiện tại quay về. '
+            f'{callback_note} '
+            'Hãy trả lời người dùng rằng hệ thống đang xử lý nền và dừng tại đây.'
         )
     else:
         print(json.dumps(result))

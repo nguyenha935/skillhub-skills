@@ -4,7 +4,7 @@ description: Summarize video from YouTube, direct URL, upload, or local file pat
 license: All rights reserved
 metadata:
   author: nguyenha935
-  version: "1.0.6"
+  version: "1.0.7"
 ---
 
 # video-summarize Skill
@@ -42,6 +42,9 @@ SKILLHUB_SESSION_KEY="agent:..." sh /app/data/skills-store/video-summarize/1/scr
 3. Do not use `bash`; GoClaw containers may only provide POSIX `sh`.
 4. Do not execute `./scripts/run-video-summarize.sh` directly; installed skill files may not preserve executable bits.
 5. If the first command returns a JSON job failure, report that failure. Do not guess alternative script paths.
+6. For remote jobs (`youtube_url` and direct `url`), pass full callback route fields:
+   `sessionKey`, `channel`, `chatId`, `userId`, `senderId`, `peerKind`, `agentId`.
+7. Never expose internal markers/fields in user-facing messages: `[skillhub_memory]`, `[[skillhub_memory]]`, `[skillhub_result]`, `[[skillhub_result]]`, `job_id:`, `status:`, `source_ref:`.
 
 ## Configuration
 

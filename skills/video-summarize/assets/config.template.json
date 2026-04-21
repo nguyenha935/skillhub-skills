@@ -2,6 +2,8 @@
   "skillHubUrl": "http://skillhub:4080",
   "defaultModel": "gemini-3.1-flash-lite-preview",
   "youtubeMode": "auto",
+  "syncWaitSeconds": 55,
+  "pollIntervalSeconds": 1,
   "supportedFormats": ["mp4", "mkv", "webm", "mov", "avi"],
   "maxFileSizeBytes": 2147483648
 }

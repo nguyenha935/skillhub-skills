@@ -5,10 +5,11 @@ import mimetypes
 import os
 import time
 import uuid
+from typing import Optional
 from urllib.request import Request, urlopen
 
 from config_loader import load_runtime_config
-from submit_video_job import resolve_runtime_secret, read_callback_context
+from submit_video_job import resolve_callback_context, resolve_runtime_secret
 
 
 def stream_file_chunks(path: str, chunk_size: int = 1024 * 1024):
@@ -24,7 +25,8 @@ def build_upload_metadata(
     path: str,
     skill_slug: str = 'video-summarize',
     youtube_mode: str = 'auto',
-    model: str | None = None,
+    model: Optional[str] = None,
+    callback_context: Optional[dict] = None,
 ) -> dict:
     mime_type, _ = mimetypes.guess_type(path)
     payload = {
@@ -36,11 +38,10 @@ def build_upload_metadata(
         'sourceName': os.path.basename(path),
         'sourceMimeType': mime_type or 'application/octet-stream',
     }
-    callback_context = read_callback_context()
-    if callback_context:
-        payload['callbackContext'] = callback_context
     if model:
         payload['model'] = model
+    if callback_context:
+        payload['callbackContext'] = callback_context
     return payload
 
 
@@ -98,11 +99,13 @@ def build_upload_auth_headers(
 
 def submit_upload(path: str, skill_slug: str = 'video-summarize') -> dict:
     config = load_runtime_config()
+    callback_context = resolve_callback_context()
     payload = build_upload_metadata(
         path,
         skill_slug,
         youtube_mode=config.get('youtubeMode', 'auto'),
         model=config.get('defaultModel'),
+        callback_context=callback_context,
     )
     payload_text = json.dumps(payload)
     timestamp = str(int(time.time()))

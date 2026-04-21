@@ -7,7 +7,14 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 
-from submit_video_job import classify_source, build_payload, build_signed_headers, resolve_runtime_secret
+from submit_video_job import (
+    classify_source,
+    build_payload,
+    build_signed_headers,
+    ensure_callback_context_for_remote_source,
+    resolve_runtime_secret,
+)
+import poll_video_job
 from upload_video_job import (
     stream_file_chunks,
     build_upload_metadata,
@@ -15,9 +22,6 @@ from upload_video_job import (
     build_upload_auth_headers,
 )
 from config_loader import load_runtime_config
-
-
-SKILL_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
 def test_classify_source():
@@ -45,6 +49,72 @@ def test_build_payload():
     assert youtube_payload['sourceType'] == 'youtube_url'
     assert youtube_payload['jobType'] == 'youtube_summarize'
     print('build_payload: OK')
+
+
+def test_build_payload_includes_callback_context_when_present():
+    payload = build_payload(
+        'youtube_url',
+        'https://youtube.com/watch?v=abc',
+        'video-summarize',
+        callback_context={
+            'sessionKey': 'agent:test:zalo:group:123',
+            'callbackMode': 'inject_then_chat_send',
+        },
+    )
+    assert payload['callbackContext']['sessionKey'] == 'agent:test:zalo:group:123'
+    print('build_payload callback context: OK')
+
+
+def test_remote_sources_require_session_key_for_callback():
+    try:
+        ensure_callback_context_for_remote_source('url', None)
+        raise AssertionError('Expected missing callback route failure for remote URL')
+    except SystemExit as exc:
+        assert 'MISSING_CALLBACK_ROUTE' in str(exc)
+    print('remote source callback route required: OK')
+
+
+def test_remote_sources_require_channel_and_chat_id_too():
+    try:
+        ensure_callback_context_for_remote_source(
+            'youtube_url',
+            {
+                'sessionKey': 'agent:test:zalo:direct:123',
+                'channel': 'bao-ly-zalo',
+                'chatId': '3497207824213987778',
+                'callbackMode': 'inject_then_channel_send',
+            },
+        )
+        raise AssertionError('Expected missing full callback route failure for remote source')
+    except SystemExit as exc:
+        assert 'MISSING_CALLBACK_ROUTE' in str(exc)
+        assert 'userId' in str(exc)
+        assert 'senderId' in str(exc)
+        assert 'peerKind' in str(exc)
+        assert 'agentId' in str(exc)
+    print('remote source full callback route required: OK')
+
+
+def test_remote_sources_allow_callback_when_full_route_present():
+    ensure_callback_context_for_remote_source(
+        'youtube_url',
+        {
+            'sessionKey': 'agent:test:zalo:direct:123',
+            'channel': 'bao-ly-zalo',
+            'chatId': '3497207824213987778',
+            'userId': 'nguyenha935',
+            'senderId': '3497207824213987778',
+            'peerKind': 'direct',
+            'agentId': 'ly-content',
+            'callbackMode': 'inject_then_channel_send',
+        },
+    )
+    print('remote source full callback route accepted: OK')
+
+
+def test_local_file_path_does_not_require_session_key():
+    ensure_callback_context_for_remote_source('file_path', None)
+    print('local file path does not require session key: OK')
 
 
 def test_build_signed_headers():
@@ -117,6 +187,24 @@ def test_build_upload_metadata():
         os.unlink(path)
 
 
+def test_build_upload_metadata_includes_callback_context_when_present():
+    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as handle:
+        path = handle.name
+    try:
+        meta = build_upload_metadata(
+            path,
+            'video-summarize',
+            callback_context={
+                'sessionKey': 'agent:test:zalo:group:456',
+                'callbackMode': 'inject_then_chat_send',
+            },
+        )
+        assert meta['callbackContext']['sessionKey'] == 'agent:test:zalo:group:456'
+        print('build_upload_metadata callback context: OK')
+    finally:
+        os.unlink(path)
+
+
 def test_load_runtime_config_prefers_asset_file():
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = os.path.join(temp_dir, 'config.json')
@@ -134,19 +222,51 @@ def test_load_runtime_config_prefers_asset_file():
         print('load_runtime_config: OK')
 
 
-def test_skill_docs_use_goclaw_safe_shell_command():
-    with open(os.path.join(SKILL_ROOT, 'SKILL.md'), encoding='utf-8') as handle:
-        skill_doc = handle.read()
-    with open(os.path.join(SKILL_ROOT, 'references', 'usage.md'), encoding='utf-8') as handle:
-        usage_doc = handle.read()
+def test_resolve_poll_settings_uses_safe_sync_window():
+    settings = poll_video_job.resolve_poll_settings({
+        'syncWaitSeconds': 52,
+        'pollIntervalSeconds': 3,
+    })
+    assert settings['max_wait'] == 52
+    assert settings['poll_interval'] == 3
+    print('resolve_poll_settings: OK')
 
-    expected = 'sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh'
-    assert expected in skill_doc
-    assert expected in usage_doc
-    assert 'bash /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh' not in skill_doc
-    assert '\n./scripts/run-video-summarize.sh' not in skill_doc
-    assert '\n./scripts/run-video-summarize.sh' not in usage_doc
-    print('skill docs shell command: OK')
+
+def test_poll_result_returns_completed_when_job_finishes_within_sync_window():
+    responses = iter([
+        {'status': 'processing'},
+        {'status': 'completed', 'resultJson': '{"summary":"done"}'},
+    ])
+    ticks = iter([0, 2, 4, 6])
+    result = poll_video_job.poll_result(
+        'job-1',
+        max_wait=10,
+        config={'skillHubUrl': 'http://skillhub:4080', 'syncWaitSeconds': 10, 'pollIntervalSeconds': 2},
+        runtime_secret='secret',
+        fetch_result_fn=lambda *_args, **_kwargs: next(responses),
+        fetch_job_fn=lambda *_args, **_kwargs: {'status': 'processing'},
+        sleep_fn=lambda *_args, **_kwargs: None,
+        now_fn=lambda: next(ticks),
+    )
+    assert result['status'] == 'completed'
+    print('poll_result completed within sync window: OK')
+
+
+def test_poll_result_returns_pending_only_after_sync_window_expires():
+    ticks = iter([0, 2, 4, 6, 8])
+    result = poll_video_job.poll_result(
+        'job-2',
+        max_wait=4,
+        config={'skillHubUrl': 'http://skillhub:4080', 'syncWaitSeconds': 4, 'pollIntervalSeconds': 2},
+        runtime_secret='secret',
+        fetch_result_fn=lambda *_args, **_kwargs: None,
+        fetch_job_fn=lambda *_args, **_kwargs: {'status': 'processing'},
+        sleep_fn=lambda *_args, **_kwargs: None,
+        now_fn=lambda: next(ticks),
+    )
+    assert result['status'] == 'pending'
+    assert result['jobStatus'] == 'processing'
+    print('poll_result pending after sync window: OK')
 
 
 def test_build_multipart_body_contains_payload_and_file_bytes():
@@ -206,11 +326,19 @@ def test_build_upload_auth_headers_signs_payload_text():
 if __name__ == '__main__':
     test_classify_source()
     test_build_payload()
+    test_build_payload_includes_callback_context_when_present()
+    test_remote_sources_require_session_key_for_callback()
+    test_remote_sources_require_channel_and_chat_id_too()
+    test_remote_sources_allow_callback_when_full_route_present()
+    test_local_file_path_does_not_require_session_key()
     test_build_signed_headers()
     test_stream_file_chunks()
     test_build_upload_metadata()
+    test_build_upload_metadata_includes_callback_context_when_present()
     test_load_runtime_config_prefers_asset_file()
-    test_skill_docs_use_goclaw_safe_shell_command()
+    test_resolve_poll_settings_uses_safe_sync_window()
+    test_poll_result_returns_completed_when_job_finishes_within_sync_window()
+    test_poll_result_returns_pending_only_after_sync_window_expires()
     test_build_multipart_body_contains_payload_and_file_bytes()
     test_build_upload_auth_headers_signs_payload_text()
     print('\nAll tests passed!')

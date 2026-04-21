@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import time
+from typing import Optional
 from urllib.request import Request, urlopen
 
 from config_loader import load_runtime_config
@@ -18,23 +19,13 @@ def classify_source(value: str) -> str:
     return 'file_path'
 
 
-def read_callback_context() -> dict | None:
-    session_key = os.environ.get('SKILLHUB_SESSION_KEY', '').strip()
-    if not session_key:
-        return None
-    callback_mode = os.environ.get('SKILLHUB_CALLBACK_MODE', 'inject_then_chat_send').strip() or 'inject_then_chat_send'
-    return {
-        'sessionKey': session_key,
-        'callbackMode': callback_mode,
-    }
-
-
 def build_payload(
     source_type: str,
     source_ref: str,
     skill_slug: str = 'video-summarize',
     youtube_mode: str = 'auto',
-    model: str | None = None,
+    model: Optional[str] = None,
+    callback_context: Optional[dict] = None,
 ) -> dict:
     job_type = 'youtube_summarize' if source_type == 'youtube_url' else 'video_summarize'
     payload = {
@@ -44,7 +35,6 @@ def build_payload(
         'sourceType': source_type,
         'sourceRef': source_ref,
     }
-    callback_context = read_callback_context()
     if callback_context:
         payload['callbackContext'] = callback_context
     if model:
@@ -82,15 +72,90 @@ def resolve_runtime_secret(signing_context: str = 'skillhub-internal-v1') -> str
     ).hexdigest()
 
 
+def resolve_callback_context() -> Optional[dict]:
+    raw = os.environ.get('SKILLHUB_CALLBACK_CONTEXT', '').strip()
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                session_key = str(parsed.get('sessionKey', '')).strip()
+                if session_key:
+                    return {
+                        'sessionKey': session_key,
+                        'channel': str(parsed.get('channel', '')).strip(),
+                        'chatId': str(parsed.get('chatId', '')).strip(),
+                        'userId': str(parsed.get('userId', '')).strip(),
+                        'senderId': str(parsed.get('senderId', '')).strip(),
+                        'peerKind': str(parsed.get('peerKind', '')).strip(),
+                        'agentId': str(parsed.get('agentId', '')).strip(),
+                        'callbackMode': str(parsed.get('callbackMode', 'inject_then_channel_send')).strip() or 'inject_then_channel_send',
+                    }
+        except Exception:
+            pass
+
+    session_key = (
+        os.environ.get('SKILLHUB_SESSION_KEY', '').strip()
+        or os.environ.get('GOCLAW_SESSION_KEY', '').strip()
+        or os.environ.get('SESSION_KEY', '').strip()
+    )
+    if not session_key:
+        return None
+    callback_mode = os.environ.get('SKILLHUB_CALLBACK_MODE', 'inject_then_channel_send').strip() or 'inject_then_channel_send'
+    return {
+        'sessionKey': session_key,
+        'channel': os.environ.get('SKILLHUB_CHANNEL', '').strip(),
+        'chatId': os.environ.get('SKILLHUB_CHAT_ID', '').strip(),
+        'userId': os.environ.get('SKILLHUB_USER_ID', '').strip(),
+        'senderId': os.environ.get('SKILLHUB_SENDER_ID', '').strip(),
+        'peerKind': os.environ.get('SKILLHUB_PEER_KIND', '').strip(),
+        'agentId': os.environ.get('SKILLHUB_AGENT_ID', '').strip(),
+        'callbackMode': callback_mode,
+    }
+
+
+def ensure_callback_context_for_remote_source(
+    source_type: str,
+    callback_context: Optional[dict],
+) -> None:
+    if source_type not in ('youtube_url', 'url'):
+        return
+    required_fields = (
+        ('sessionKey', 'sessionKey'),
+        ('channel', 'channel'),
+        ('chatId', 'chatId'),
+        ('userId', 'userId'),
+        ('senderId', 'senderId'),
+        ('peerKind', 'peerKind'),
+        ('agentId', 'agentId'),
+    )
+    missing = [
+        label
+        for key, label in required_fields
+        if not str((callback_context or {}).get(key, '')).strip()
+    ]
+    if not missing:
+        return
+    raise SystemExit(
+        'MISSING_CALLBACK_ROUTE: Remote video jobs must include a full callback route so SkillHub can callback the same GoClaw conversation. '
+        f"Missing: {', '.join(missing)}. "
+        'Call this skill with SKILLHUB_CALLBACK_CONTEXT or pass '
+        'SKILLHUB_SESSION_KEY + SKILLHUB_CHANNEL + SKILLHUB_CHAT_ID + '
+        'SKILLHUB_USER_ID + SKILLHUB_SENDER_ID + SKILLHUB_PEER_KIND + SKILLHUB_AGENT_ID.'
+    )
+
+
 def submit(source: str, skill_slug: str = 'video-summarize') -> dict:
     config = load_runtime_config()
     source_type = classify_source(source)
+    callback_context = resolve_callback_context()
+    ensure_callback_context_for_remote_source(source_type, callback_context)
     payload = build_payload(
         source_type,
         source,
         skill_slug,
         youtube_mode=config.get('youtubeMode', 'auto'),
         model=config.get('defaultModel'),
+        callback_context=callback_context,
     )
     body = json.dumps(payload)
     timestamp = str(int(time.time()))
