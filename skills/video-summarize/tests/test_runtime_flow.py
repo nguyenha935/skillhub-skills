@@ -12,6 +12,7 @@ from submit_video_job import (
     build_payload,
     build_signed_headers,
     ensure_callback_context_for_remote_source,
+    enrich_callback_context,
     resolve_runtime_secret,
 )
 import poll_video_job
@@ -74,25 +75,36 @@ def test_remote_sources_require_session_key_for_callback():
     print('remote source callback route required: OK')
 
 
-def test_remote_sources_require_channel_and_chat_id_too():
+def test_remote_sources_allow_route_derived_from_session_key():
+    ensure_callback_context_for_remote_source(
+        'youtube_url',
+        enrich_callback_context(
+            {
+                'sessionKey': 'agent:ly-content:bao-ly-zalo:direct:3497207824213987778',
+            },
+        ),
+    )
+    print('remote source route derived from session key: OK')
+
+
+def test_remote_sources_reject_invalid_session_key_without_full_route():
     try:
         ensure_callback_context_for_remote_source(
             'youtube_url',
-            {
-                'sessionKey': 'agent:test:zalo:direct:123',
-                'channel': 'bao-ly-zalo',
-                'chatId': '3497207824213987778',
-                'callbackMode': 'inject_then_channel_send',
-            },
+            enrich_callback_context(
+                {
+                    'sessionKey': 'invalid-session',
+                    'channel': 'bao-ly-zalo',
+                    'chatId': '3497207824213987778',
+                },
+            ),
         )
-        raise AssertionError('Expected missing full callback route failure for remote source')
+        raise AssertionError('Expected missing full callback route failure for invalid session key')
     except SystemExit as exc:
         assert 'MISSING_CALLBACK_ROUTE' in str(exc)
-        assert 'userId' in str(exc)
-        assert 'senderId' in str(exc)
         assert 'peerKind' in str(exc)
         assert 'agentId' in str(exc)
-    print('remote source full callback route required: OK')
+    print('remote source invalid session key rejected: OK')
 
 
 def test_remote_sources_allow_callback_when_full_route_present():
@@ -115,6 +127,20 @@ def test_remote_sources_allow_callback_when_full_route_present():
 def test_local_file_path_does_not_require_session_key():
     ensure_callback_context_for_remote_source('file_path', None)
     print('local file path does not require session key: OK')
+
+
+def test_enrich_callback_context_derives_route_from_session_key():
+    enriched = enrich_callback_context({
+        'sessionKey': 'agent:ly-content:bao-ly-zalo:group:5246639850626543237',
+    })
+    assert enriched is not None
+    assert enriched['agentId'] == 'ly-content'
+    assert enriched['channel'] == 'bao-ly-zalo'
+    assert enriched['peerKind'] == 'group'
+    assert enriched['chatId'] == '5246639850626543237'
+    assert enriched['userId'] == 'group:bao-ly-zalo:5246639850626543237'
+    assert enriched['senderId'] == '5246639850626543237'
+    print('enrich_callback_context derive from session key: OK')
 
 
 def test_build_signed_headers():
@@ -328,10 +354,13 @@ if __name__ == '__main__':
     test_build_payload()
     test_build_payload_includes_callback_context_when_present()
     test_remote_sources_require_session_key_for_callback()
-    test_remote_sources_require_channel_and_chat_id_too()
+    test_remote_sources_allow_route_derived_from_session_key()
+    test_remote_sources_reject_invalid_session_key_without_full_route()
     test_remote_sources_allow_callback_when_full_route_present()
     test_local_file_path_does_not_require_session_key()
+    test_enrich_callback_context_derives_route_from_session_key()
     test_build_signed_headers()
+    test_resolve_runtime_secret_prefers_explicit_skillhub_secret()
     test_stream_file_chunks()
     test_build_upload_metadata()
     test_build_upload_metadata_includes_callback_context_when_present()

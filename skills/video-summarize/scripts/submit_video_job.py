@@ -19,6 +19,99 @@ def classify_source(value: str) -> str:
     return 'file_path'
 
 
+def first_env(*keys: str) -> str:
+    for key in keys:
+        value = os.environ.get(key, '').strip()
+        if value:
+            return value
+    return ''
+
+
+def parse_session_key(session_key: str) -> dict:
+    parts = (session_key or '').split(':')
+    if len(parts) < 5 or parts[0] != 'agent':
+        return {}
+    return {
+        'agentId': parts[1].strip(),
+        'channel': parts[2].strip(),
+        'peerKind': parts[3].strip(),
+        'chatId': parts[4].strip(),
+    }
+
+
+def enrich_callback_context(callback_context: Optional[dict]) -> Optional[dict]:
+    callback_context = dict(callback_context or {})
+    session_key = (
+        str(callback_context.get('sessionKey', '')).strip()
+        or first_env('SKILLHUB_SESSION_KEY', 'GOCLAW_SESSION_KEY', 'SESSION_KEY')
+    )
+    if not session_key:
+        return None
+
+    parsed = parse_session_key(session_key)
+    callback_mode = (
+        str(callback_context.get('callbackMode', '')).strip()
+        or first_env('SKILLHUB_CALLBACK_MODE')
+        or 'inject_then_channel_send'
+    )
+
+    channel = (
+        str(callback_context.get('channel', '')).strip()
+        or first_env('SKILLHUB_CHANNEL', 'CHANNEL', 'GOCLAW_CHANNEL')
+        or parsed.get('channel', '')
+    )
+    chat_id = (
+        str(callback_context.get('chatId', '')).strip()
+        or first_env('SKILLHUB_CHAT_ID', 'CHAT_ID', 'TO', 'GOCLAW_CHAT_ID')
+        or parsed.get('chatId', '')
+    )
+    peer_kind = (
+        str(callback_context.get('peerKind', '')).strip()
+        or first_env('SKILLHUB_PEER_KIND', 'PEER_KIND', 'GOCLAW_PEER_KIND')
+        or parsed.get('peerKind', '')
+    )
+    agent_id = (
+        str(callback_context.get('agentId', '')).strip()
+        or first_env('SKILLHUB_AGENT_ID', 'AGENT_ID', 'GOCLAW_AGENT_ID')
+        or parsed.get('agentId', '')
+    )
+    user_id = (
+        str(callback_context.get('userId', '')).strip()
+        or first_env('SKILLHUB_USER_ID', 'USER_ID', 'GOCLAW_USER_ID')
+    )
+    sender_id = (
+        str(callback_context.get('senderId', '')).strip()
+        or first_env(
+            'SKILLHUB_SENDER_ID',
+            'SENDER_ID',
+            'SENDER',
+            'SKILLHUB_FROM_ID',
+            'FROM_ID',
+            'GOCLAW_SENDER_ID',
+        )
+    )
+
+    if not user_id:
+        if channel and chat_id and peer_kind == 'group':
+            user_id = f'group:{channel}:{chat_id}'
+        elif chat_id:
+            user_id = chat_id
+
+    if not sender_id:
+        sender_id = chat_id or user_id
+
+    return {
+        'sessionKey': session_key,
+        'channel': channel,
+        'chatId': chat_id,
+        'userId': user_id,
+        'senderId': sender_id,
+        'peerKind': peer_kind,
+        'agentId': agent_id,
+        'callbackMode': callback_mode,
+    }
+
+
 def build_payload(
     source_type: str,
     source_ref: str,
@@ -78,39 +171,13 @@ def resolve_callback_context() -> Optional[dict]:
         try:
             parsed = json.loads(raw)
             if isinstance(parsed, dict):
-                session_key = str(parsed.get('sessionKey', '')).strip()
-                if session_key:
-                    return {
-                        'sessionKey': session_key,
-                        'channel': str(parsed.get('channel', '')).strip(),
-                        'chatId': str(parsed.get('chatId', '')).strip(),
-                        'userId': str(parsed.get('userId', '')).strip(),
-                        'senderId': str(parsed.get('senderId', '')).strip(),
-                        'peerKind': str(parsed.get('peerKind', '')).strip(),
-                        'agentId': str(parsed.get('agentId', '')).strip(),
-                        'callbackMode': str(parsed.get('callbackMode', 'inject_then_channel_send')).strip() or 'inject_then_channel_send',
-                    }
+                enriched = enrich_callback_context(parsed)
+                if enriched:
+                    return enriched
         except Exception:
             pass
 
-    session_key = (
-        os.environ.get('SKILLHUB_SESSION_KEY', '').strip()
-        or os.environ.get('GOCLAW_SESSION_KEY', '').strip()
-        or os.environ.get('SESSION_KEY', '').strip()
-    )
-    if not session_key:
-        return None
-    callback_mode = os.environ.get('SKILLHUB_CALLBACK_MODE', 'inject_then_channel_send').strip() or 'inject_then_channel_send'
-    return {
-        'sessionKey': session_key,
-        'channel': os.environ.get('SKILLHUB_CHANNEL', '').strip(),
-        'chatId': os.environ.get('SKILLHUB_CHAT_ID', '').strip(),
-        'userId': os.environ.get('SKILLHUB_USER_ID', '').strip(),
-        'senderId': os.environ.get('SKILLHUB_SENDER_ID', '').strip(),
-        'peerKind': os.environ.get('SKILLHUB_PEER_KIND', '').strip(),
-        'agentId': os.environ.get('SKILLHUB_AGENT_ID', '').strip(),
-        'callbackMode': callback_mode,
-    }
+    return enrich_callback_context(None)
 
 
 def ensure_callback_context_for_remote_source(
@@ -139,8 +206,9 @@ def ensure_callback_context_for_remote_source(
         'MISSING_CALLBACK_ROUTE: Remote video jobs must include a full callback route so SkillHub can callback the same GoClaw conversation. '
         f"Missing: {', '.join(missing)}. "
         'Call this skill with SKILLHUB_CALLBACK_CONTEXT or pass '
-        'SKILLHUB_SESSION_KEY + SKILLHUB_CHANNEL + SKILLHUB_CHAT_ID + '
-        'SKILLHUB_USER_ID + SKILLHUB_SENDER_ID + SKILLHUB_PEER_KIND + SKILLHUB_AGENT_ID.'
+        'SKILLHUB_SESSION_KEY + SKILLHUB_CHANNEL + SKILLHUB_CHAT_ID + SKILLHUB_USER_ID + SKILLHUB_SENDER_ID + SKILLHUB_PEER_KIND + SKILLHUB_AGENT_ID. '
+        'Nếu chỉ có SKILLHUB_SESSION_KEY thì script sẽ tự suy ra route cơ bản từ sessionKey chuẩn '
+        'agent:<agentId>:<channel>:<peerKind>:<chatId> và tự điền userId/senderId khi có thể.'
     )
 
 
