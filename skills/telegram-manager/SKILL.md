@@ -4,12 +4,13 @@ description: Quản trị Telegram group/forum qua SkillHub (topic, message, mod
 license: All rights reserved
 metadata:
   author: nguyenha935
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # telegram-manager Skill
 
 Điều khiển Telegram bằng Telegram Bot API thông qua SkillHub runtime endpoint.
+Token bot được tự resolve từ GoClaw channel runtime (single source), không cần add key riêng ở SkillHub.
 
 ## GoClaw Runtime Command
 
@@ -38,6 +39,7 @@ sh /app/data/skills-store/telegram-manager/1/scripts/run-telegram-manager.sh \
 4. Khi cần confirm, gọi lại cùng payload + `--confirm-token` để execute bước 2.
 5. Không tự đoán `chatId`; phải dùng đúng chat/group đã cho.
 6. Không đưa token/secret vào câu trả lời user.
+7. Không truyền `delegatedBotToken` thủ công trừ khi debug; script tự resolve token từ GoClaw.
 
 ## Input Envelope
 
@@ -69,4 +71,4 @@ Envelope JSON chuẩn:
 
 - Telegram Bot API **không hỗ trợ** tạo group/channel mới.
 - Bot phải được add vào group mục tiêu và có quyền admin phù hợp.
-- SkillHub backend bắt buộc `allowedChatIds` để chống lạm dụng.
+- Skill tự resolve bot token từ GoClaw channel credentials; không cần cấu hình key riêng trong SkillHub.

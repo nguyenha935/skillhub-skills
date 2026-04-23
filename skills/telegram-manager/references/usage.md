@@ -1,5 +1,8 @@
 # Telegram Manager Usage
 
+Skill sẽ tự lấy Telegram bot token từ GoClaw channel runtime.
+Không cần add API key riêng trong SkillHub cho luồng này.
+
 ## 1) Send message vào topic
 
 ```bash

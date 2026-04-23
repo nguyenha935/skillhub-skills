@@ -3,7 +3,7 @@
   "id": "skillhub-skill-telegram-manager",
   "slug": "telegram-manager",
   "name": "Telegram Manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Manage Telegram forum topics, messages, moderation, and chat settings via SkillHub.",
   "summary": "Telegram Bot API management skill with allowlist and 2-step confirm for risky operations.",
   "compatibility": {

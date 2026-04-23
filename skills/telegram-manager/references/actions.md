@@ -1,5 +1,7 @@
 # Telegram Manager Actions
 
+Lưu ý runtime: bot token được resolve tự động từ GoClaw channel credentials theo chat context.
+
 ## Topic / Forum
 - `create_topic` payload: `{ "name": "...", "iconColor": 7322096?, "iconEmojiId": "..."? }`
 - `edit_topic` payload: `{ "name": "..."?, "iconEmojiId": "..."? }` + `topicId`
