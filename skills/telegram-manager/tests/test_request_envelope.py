@@ -1,5 +1,7 @@
 import argparse
 import os
+import shutil
+import subprocess
 import sys
 import unittest
 from unittest.mock import patch
@@ -49,6 +51,32 @@ class TelegramManagerEnvelopeTest(unittest.TestCase):
         token = action.resolve_delegated_bot_token(envelope)
         self.assertEqual(token, '8641653219:AAEfLNXfx6XJExzDzz_690JPWtkxaKDfe00')
         self.assertEqual(envelope['delegatedBotToken'], token)
+
+    def test_decrypt_goclaw_credentials_without_python_cryptography(self):
+        if not shutil.which('node'):
+            self.skipTest('node is required for stdlib fallback decrypt test')
+
+        key = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+        plaintext = '{"token":"8641653219:AAEfLNXfx6XJExzDzz_690JPWtkxaKDfe00"}'
+        script = r'''
+const crypto = require('crypto');
+const key = Buffer.from(process.argv[1], 'hex').subarray(0, 32);
+const iv = Buffer.from('00112233445566778899aabb', 'hex');
+const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+const ciphertext = Buffer.concat([cipher.update(process.argv[2], 'utf8'), cipher.final()]);
+const tag = cipher.getAuthTag();
+process.stdout.write(Buffer.concat([iv, ciphertext, tag]).toString('base64'));
+'''
+        encrypted = subprocess.check_output(['node', '-e', script, key, plaintext], text=True)
+
+        original_aesgcm = action.AESGCM
+        try:
+            action.AESGCM = None
+            token = action._decrypt_goclaw_channel_credentials(f'aes-gcm:{encrypted}', key)
+        finally:
+            action.AESGCM = original_aesgcm
+
+        self.assertEqual(token, '8641653219:AAEfLNXfx6XJExzDzz_690JPWtkxaKDfe00')
 
 
 if __name__ == '__main__':

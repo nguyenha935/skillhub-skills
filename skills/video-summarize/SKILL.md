@@ -22,23 +22,26 @@ Summarize video from YouTube, direct video URLs, or local file paths through Ski
 
 Always use `sh`. Do not call the script directly and do not use `bash`.
 
-Mandatory preflight for every new run: read this file first.
+Mandatory preflight for every new run: resolve the installed version directory, then read this file first.
 
 ```bash
-sed -n '1,220p' /app/data/skills-store/video-summarize/1/SKILL.md
+VIDEO_SUMMARIZE_DIR="$(ls -d /app/data/skills-store/video-summarize/* | sort -V | tail -n 1)"
+sed -n '1,220p' "$VIDEO_SUMMARIZE_DIR/SKILL.md"
 ```
 
 ```bash
-sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh "https://www.youtube.com/watch?v=..."
-sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh "https://cdn.example.com/video.mp4"
-sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh "/local/path/to/video.mp4"
+VIDEO_SUMMARIZE_DIR="$(ls -d /app/data/skills-store/video-summarize/* | sort -V | tail -n 1)"
+sh "$VIDEO_SUMMARIZE_DIR/scripts/run-video-summarize.sh" "https://www.youtube.com/watch?v=..."
+sh "$VIDEO_SUMMARIZE_DIR/scripts/run-video-summarize.sh" "https://cdn.example.com/video.mp4"
+sh "$VIDEO_SUMMARIZE_DIR/scripts/run-video-summarize.sh" "/local/path/to/video.mp4"
 ```
 
 For long jobs, call `session_status` first, copy the current `Session:` value,
 then pass it as `SKILLHUB_SESSION_KEY`:
 
 ```bash
-SKILLHUB_SESSION_KEY="agent:..." sh /app/data/skills-store/video-summarize/1/scripts/run-video-summarize.sh "https://www.youtube.com/watch?v=..."
+VIDEO_SUMMARIZE_DIR="$(ls -d /app/data/skills-store/video-summarize/* | sort -V | tail -n 1)"
+SKILLHUB_SESSION_KEY="agent:..." sh "$VIDEO_SUMMARIZE_DIR/scripts/run-video-summarize.sh" "https://www.youtube.com/watch?v=..."
 ```
 
 ## Runtime Rules For Agents

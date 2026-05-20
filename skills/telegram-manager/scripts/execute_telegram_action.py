@@ -12,7 +12,10 @@ import uuid
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+try:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+except ModuleNotFoundError:  # GoClaw runtime may only provide Python stdlib + Node.
+    AESGCM = None
 
 from config_loader import load_runtime_config
 
@@ -133,11 +136,55 @@ def _decrypt_goclaw_channel_credentials(encrypted_blob: str, encryption_key: str
         raise SystemExit('Invalid encrypted credential payload length')
     iv = raw[:12]
     ciphertext_and_tag = raw[12:]
-    plaintext = AESGCM(_derive_aes_key(encryption_key)).decrypt(iv, ciphertext_and_tag, None).decode('utf-8', errors='replace')
+    if AESGCM is not None:
+        plaintext = AESGCM(_derive_aes_key(encryption_key)).decrypt(iv, ciphertext_and_tag, None).decode('utf-8', errors='replace')
+    else:
+        plaintext = _decrypt_goclaw_channel_credentials_with_node(raw, encryption_key)
     token = _extract_token_from_plaintext(plaintext)
     if not token:
         raise SystemExit('Could not extract Telegram bot token from decrypted channel credentials')
     return token
+
+
+def _decrypt_goclaw_channel_credentials_with_node(raw: bytes, encryption_key: str) -> str:
+    script = r'''
+const crypto = require('crypto');
+const raw = Buffer.from(process.argv[1], 'base64');
+let keyText = String(process.argv[2] || '').trim();
+if (!keyText) {
+  console.error('Missing GOCLAW_ENCRYPTION_KEY in runtime environment');
+  process.exit(2);
+}
+let key = /^[0-9a-fA-F]{64,}$/.test(keyText) ? Buffer.from(keyText, 'hex') : Buffer.from(keyText, 'utf8');
+if (key.length < 32) {
+  console.error('GOCLAW_ENCRYPTION_KEY must resolve to at least 32 bytes');
+  process.exit(2);
+}
+key = key.subarray(0, 32);
+const iv = raw.subarray(0, 12);
+const ciphertextAndTag = raw.subarray(12);
+const tag = ciphertextAndTag.subarray(ciphertextAndTag.length - 16);
+const ciphertext = ciphertextAndTag.subarray(0, ciphertextAndTag.length - 16);
+try {
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  process.stdout.write(plaintext.toString('utf8'));
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(2);
+}
+'''
+    result = subprocess.run(
+        ['node', '-e', script, base64.b64encode(raw).decode('ascii'), encryption_key],
+        capture_output=True,
+        text=True,
+        timeout=12,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or '').strip().splitlines()[:1]
+        raise SystemExit(f'Failed to decrypt GoClaw channel credentials with Node crypto: {"; ".join(detail) if detail else "unknown error"}')
+    return result.stdout
 
 
 def _run_psql_query(query: str) -> list[str]:

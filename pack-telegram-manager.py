@@ -10,7 +10,7 @@ for name in include_roots:
     path = root / name
     if path.is_dir():
         files.extend(p for p in path.rglob('*') if p.is_file())
-    else:
+    elif path.is_file():
         files.append(path)
 
 with ZipFile(zip_path, 'w', ZIP_DEFLATED) as archive:
